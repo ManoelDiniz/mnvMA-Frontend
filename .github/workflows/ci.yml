@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Lint, tipos, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      # Smoke de renderização e as funções puras. Não substitui abrir no
+      # navegador — pega import errado, hook fora de ordem e componente
+      # indefinido, que derrubam a tela inteira em branco no celular de quem
+      # está trabalhando e não aparecem no `tsc`.
+      - name: Testes
+        run: npm test
+
+      # O build é onde o service worker é gerado. Vale como teste: PWA que não
+      # compila não atualiza no aparelho de ninguém.
+      - name: Build de produção
+        run: npm run build
+
+  dependencias:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Vulnerabilidades conhecidas (relatório)
+        run: npm audit --audit-level=high || true
+
+      - name: Vulnerabilidade crítica bloqueia
+        run: npm audit --audit-level=critical
