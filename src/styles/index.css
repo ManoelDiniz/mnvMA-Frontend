@@ -1,0 +1,198 @@
+@import 'tailwindcss';
+
+/*
+ * MNVMA Care — sistema visual
+ *
+ * O público é cuidador de 40+ anos, muitas vezes usando o celular em pé, na rua,
+ * com uma mão só, às vezes de madrugada. As decisões abaixo saem daí:
+ *
+ *  • Base 16px e nada de texto secundário menor que 14px.
+ *  • Alvo de toque mínimo de 44px, sempre.
+ *  • Contraste AA nos dois temas — inclusive no texto "fraco".
+ *  • Cor nunca é o único indicador de estado: sempre acompanha rótulo.
+ *  • Densidade baixa. Este painel não é um dashboard de BI.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ─── Marca ────────────────────────────────────────────────────────────── */
+  --color-brand-50: #ecfeff;
+  --color-brand-100: #cffafe;
+  --color-brand-200: #a5f3fc;
+  --color-brand-300: #67e8f9;
+  --color-brand-400: #22d3ee;
+  --color-brand-500: #06b6d4;
+  --color-brand-600: #0891b2;
+  --color-brand-700: #0e7490;
+  --color-brand-800: #155e75;
+  --color-brand-900: #164e63;
+
+  /* ─── Superfícies e texto (tema claro) ─────────────────────────────────── */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-raised: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-ink: #0f172a;
+  /* slate-600, não slate-400: texto secundário também precisa passar em AA */
+  --color-ink-muted: #475569;
+  --color-ink-subtle: #64748b;
+
+  /* ─── Estados ──────────────────────────────────────────────────────────── */
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fee2e2;
+  --color-info: #1d4ed8;
+  --color-info-soft: #dbeafe;
+
+  /* ─── Tipografia ───────────────────────────────────────────────────────── */
+  /* Stack do sistema: zero requisição de rede, renderiza na hora e tem
+     acentuação impecável em pt-BR. Um PWA que precisa abrir offline não deveria
+     depender de fonte remota. */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-numeric: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --text-xs: 0.8125rem; /* 13px — só para etiquetas, nunca para conteúdo */
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.125rem;
+
+  /* ─── Outros ───────────────────────────────────────────────────────────── */
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 3px rgb(15 23 42 / 0.1);
+  --shadow-raised: 0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+}
+
+/*
+ * Escala de z-index declarada, para não virar guerra de 9999.
+ *
+ * Precisa ser `@utility` e não token do @theme: o Tailwind v4 não tem namespace
+ * `--z-*`, então `z-sticky` viria de um token e simplesmente não geraria CSS —
+ * as camadas ficariam sem ordem de empilhamento e ninguém perceberia até a
+ * gaveta abrir por baixo do conteúdo.
+ */
+@utility z-sticky {
+  z-index: 10;
+}
+@utility z-drawer {
+  z-index: 20;
+}
+@utility z-modal {
+  z-index: 30;
+}
+@utility z-toast {
+  z-index: 50;
+}
+
+/* ─── Tema escuro ────────────────────────────────────────────────────────── */
+.dark {
+  --color-surface: #0b1220;
+  --color-surface-muted: #111c2e;
+  --color-surface-raised: #16233a;
+  --color-border: #24344f;
+  --color-border-strong: #33476a;
+  --color-ink: #f1f5f9;
+  --color-ink-muted: #b6c2d4;
+  --color-ink-subtle: #94a3b8;
+
+  --color-success: #4ade80;
+  --color-success-soft: #14321f;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #3a2a08;
+  --color-danger: #f87171;
+  --color-danger-soft: #3b1414;
+  --color-info: #60a5fa;
+  --color-info-soft: #14243f;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Sem scroll-behavior global: quem pediu menos movimento não deve receber
+       rolagem animada. Ver a regra de prefers-reduced-motion abaixo. */
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    /* Evita o "pull to refresh" recarregar o app durante uma rolagem rápida */
+    overscroll-behavior-y: none;
+  }
+
+  h1, h2, h3 {
+    line-height: 1.25;
+    font-weight: 650;
+    letter-spacing: -0.011em;
+  }
+
+  /* Foco visível sempre — teclado, leitor de tela e navegação por Tab
+     dependem disso, e é a primeira coisa que some quando se mexe em outline. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+  .dark :focus-visible {
+    outline-color: var(--color-brand-400);
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a[href],
+  summary {
+    cursor: pointer;
+  }
+
+  /* Número de dinheiro alinhado em coluna: 1.234,56 embaixo de 987,00 */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer utilities {
+  /* Área segura do iPhone: a barra inferior não pode ficar sob o indicador
+     de gestos, e o cabeçalho não pode entrar no notch. */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0.5rem);
+  }
+
+  /* Alvo de toque de 44px mesmo quando o ícone é pequeno */
+  .touch-target {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+/* Respeita quem pediu menos movimento no sistema — vestibular, enxaqueca,
+   epilepsia fotossensível. Não é preferência estética. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

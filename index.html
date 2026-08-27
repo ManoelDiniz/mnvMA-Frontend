@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover + as safe-area do CSS: sem isso a barra inferior fica
+         embaixo do indicador de gestos no iPhone -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="description" content="MNVMA Care — gestão de clientes, plantões e financeiro para cuidadores." />
+    <meta name="theme-color" content="#0E7490" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B1220" media="(prefers-color-scheme: dark)" />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MNVMA" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <title>MNVMA Care</title>
+
+    <script>
+      // Roda antes da primeira pintura: sem isto o app pisca branco antes de
+      // virar escuro, e piscar branco às 5h da manhã incomoda de verdade.
+      ;(function () {
+        try {
+          var salvo = localStorage.getItem('mnvma:theme')
+          var escuro =
+            salvo === 'dark' ||
+            (salvo !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', escuro)
+        } catch (e) {
+          /* modo anônimo ou storage bloqueado: segue no tema claro */
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      O MNVMA Care precisa de JavaScript para funcionar. Ative-o nas configurações do
+      navegador.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
