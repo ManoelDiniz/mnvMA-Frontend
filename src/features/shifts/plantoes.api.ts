@@ -82,10 +82,48 @@ export interface FiltroPlantoes {
   uncovered?: boolean
 }
 
+/** Um cuidador da equipe, com o motivo de não poder cobrir este plantão. */
+export interface Candidato {
+  id: string
+  name: string
+  shiftRate?: string | null
+  /** Livre de conflito e dentro da disponibilidade declarada. */
+  available: boolean
+  /** Por que não pode, quando `available` é falso. */
+  reason: string | null
+  shiftsSameDay: number
+}
+
+export interface Substituicao {
+  id: string
+  shiftId: string
+  shiftStartsAt: string
+  customerName: string
+  previousCaregiverId: string | null
+  previousCaregiverName: string | null
+  newCaregiverId: string
+  newCaregiverName: string
+  reason: string
+  changedByName: string | null
+  createdAt: string
+  /** O plantão estava descoberto: foi cobertura, não troca. */
+  wasUncovered: boolean
+}
+
+export interface TrocaDeCuidador {
+  caregiverId: string
+  reason: string
+  caregiverCost?: string
+  /** Escala mesmo com bloqueio ou conflito. Fica registrado no motivo. */
+  force?: boolean
+}
+
 export const chavesPlantoes = {
   todos: ['plantoes'] as const,
   lista: (filtro: FiltroPlantoes) => [...chavesPlantoes.todos, 'lista', filtro] as const,
   detalhe: (id: string) => [...chavesPlantoes.todos, 'detalhe', id] as const,
+  candidatos: (id: string) => [...chavesPlantoes.todos, 'candidatos', id] as const,
+  substituicoes: (id: string) => [...chavesPlantoes.todos, 'substituicoes', id] as const,
 }
 
 export function usePlantoes(filtro: FiltroPlantoes) {
@@ -101,6 +139,51 @@ export function usePlantao(id: string | undefined) {
     queryKey: chavesPlantoes.detalhe(id ?? ''),
     queryFn: ({ signal }) => api.get<Plantao>(`/shifts/${id}`, { signal }),
     enabled: Boolean(id),
+  })
+}
+
+/**
+ * Quem pode cobrir este plantão.
+ *
+ * Vem a equipe inteira, inclusive quem não pode — com o motivo. Sumir da lista
+ * sem explicação é pior que aparecer bloqueado: quem está montando a escala
+ * precisa saber se a pessoa tem outro plantão, se declarou indisponibilidade ou
+ * se simplesmente foi desativada.
+ */
+export function useCandidatos(id: string | undefined, ativo = true) {
+  return useQuery({
+    queryKey: chavesPlantoes.candidatos(id ?? ''),
+    queryFn: ({ signal }) => api.get<Candidato[]>(`/shifts/${id ?? ''}/candidates`, { signal }),
+    enabled: Boolean(id) && ativo,
+  })
+}
+
+/** O histórico de trocas do plantão — é ele que a substituição existe para gerar. */
+export function useSubstituicoes(id: string | undefined) {
+  return useQuery({
+    queryKey: chavesPlantoes.substituicoes(id ?? ''),
+    queryFn: ({ signal }) =>
+      api.get<Substituicao[]>(`/shifts/${id ?? ''}/substitutions`, { signal }),
+    enabled: Boolean(id),
+  })
+}
+
+/**
+ * Troca o cuidador do plantão.
+ *
+ * Diferente de editar o plantão e trocar o campo: aqui a troca fica registrada
+ * com motivo e autor. É o que responde depois "quantas vezes esse plantão trocou
+ * de mãos?" — pergunta que o cliente faz quando reclama de rotatividade.
+ */
+export function useSubstituirCuidador(id: string) {
+  const cache = useQueryClient()
+
+  return useMutation({
+    mutationFn: (dados: TrocaDeCuidador) => api.post<Plantao>(`/shifts/${id}/substitute`, dados),
+    onSuccess: (plantao) => {
+      cache.setQueryData(chavesPlantoes.detalhe(id), plantao)
+      void cache.invalidateQueries({ queryKey: chavesPlantoes.todos })
+    },
   })
 }
 

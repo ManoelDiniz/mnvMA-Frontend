@@ -10,6 +10,7 @@ import { estilosBotao } from '@/shared/ui/button.styles'
 import { Badge, Card, CardBody, CardHeader } from '@/shared/ui/Card'
 import { InputField } from '@/shared/ui/Field'
 import { Carregando, EstadoErro } from '@/shared/ui/feedback'
+import { SubstituirCuidador } from './SubstituirCuidador'
 import {
   EXIGEM_MOTIVO,
   PROXIMOS_STATUS,
@@ -246,6 +247,10 @@ export default function PlantaoDetalhePage() {
           </CardBody>
         </Card>
       )}
+
+      {/* Trocar o cuidador é o único caminho que deixa rastro; editar o plantão
+          trocaria o campo e apagaria o passado. */}
+      <SubstituirCuidador plantao={plantao} podeTrocar={podeEditar} />
 
       {pode('shifts:delete') && !somenteLeitura() && plantao.status !== 'COMPLETED' && (
         <Button
