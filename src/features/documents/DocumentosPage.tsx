@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { AlertTriangle, FilePlus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Download, FilePlus, Paperclip, Trash2, Upload } from 'lucide-react'
 import { useAuth } from '@/features/auth/auth.store'
 import { useCaregivers } from '@/features/caregivers/cuidadores.api'
 import { ApiError } from '@/shared/api/client'
@@ -14,13 +14,19 @@ import { InputField, TextareaField } from '@/shared/ui/Field'
 import { Selecao } from '@/shared/ui/Selecao'
 import { EstadoErro, EstadoVazio, ListaSkeleton, SemPermissao } from '@/shared/ui/feedback'
 import {
+  ACCEPT_ARQUIVO,
   ROTULO_TIPO,
   SITUACAO_DOCUMENTO,
   TIPOS_COM_VALIDADE,
   prazoEmTexto,
+  problemaNoArquivo,
+  tamanhoEmTexto,
+  useAnexarArquivo,
   useAtualizarDocumento,
+  useBaixarArquivo,
   useCriarDocumento,
   useDocumentos,
+  useRemoverArquivo,
   useRemoverDocumento,
   type Documento,
   type TipoDocumento,
@@ -59,10 +65,15 @@ const FILTROS = [
 /**
  * Documentos da equipe.
  *
- * O que importa aqui não é guardar o arquivo — é avisar ANTES de vencer. COREN
- * suspenso ou atestado vencido põem a empresa em risco no dia em que acontece um
- * incidente, e ninguém descobre isso abrindo pasta por pasta. Por isso a tela
- * abre no filtro "precisam de atenção", e não na lista completa.
+ * O que importa aqui é avisar ANTES de vencer. COREN suspenso ou atestado
+ * vencido põem a empresa em risco no dia em que acontece um incidente, e
+ * ninguém descobre isso abrindo pasta por pasta. Por isso a tela abre no filtro
+ * "precisam de atenção", e não na lista completa.
+ *
+ * O arquivo é opcional e vem depois, por isso ele não está no formulário de
+ * cadastro: quem está com o COREN da equipe na mão registra a validade dos
+ * doze de uma vez e anexa o PDF quando tiver. Exigir o arquivo para cadastrar
+ * faria a validade — que é o que dispara o alerta — deixar de ser registrada.
  */
 export default function DocumentosPage() {
   const pode = useAuth((e) => e.pode)
@@ -261,6 +272,8 @@ function LinhaDocumento({
         )}
       </div>
 
+      <ArquivoDoDocumento documento={documento} podeEscrever={podeEscrever} />
+
       {renovando && podeEscrever && (
         <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <div className="flex flex-col gap-1.5">
@@ -305,6 +318,169 @@ function LinhaDocumento({
         </p>
       )}
     </li>
+  )
+}
+
+// ─── Arquivo ──────────────────────────────────────────────────────────────────
+
+/**
+ * Anexar, baixar e trocar o arquivo do documento.
+ *
+ * Fica dentro da linha, e não numa tela própria, porque anexar é sempre um
+ * gesto sobre um documento que já existe: a pessoa vê "COREN vencendo" e quer
+ * pôr o PDF ali, não navegar para outro lugar e procurar o registro de novo.
+ *
+ * O `input` de arquivo é escondido e disparado pelo botão. Não é enfeite: o
+ * `input[type=file]` nativo não aceita estilo, não tem foco visível decente e
+ * escreve "Nenhum arquivo selecionado" em inglês em parte dos navegadores.
+ */
+function ArquivoDoDocumento({
+  documento,
+  podeEscrever,
+}: {
+  documento: Documento
+  podeEscrever: boolean
+}) {
+  const seletor = useRef<HTMLInputElement>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const anexar = useAnexarArquivo()
+  const remover = useRemoverArquivo()
+  const baixar = useBaixarArquivo()
+
+  const temArquivo = Boolean(documento.fileName)
+  const ocupado = anexar.isPending || remover.isPending || baixar.isPending
+
+  function escolheu(evento: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = evento.target.files?.[0]
+    // Zera o valor sempre: sem isso, escolher o MESMO arquivo de novo depois de
+    // um erro não dispara `change`, e a tela fica parecendo travada.
+    evento.target.value = ''
+    if (!arquivo) return
+
+    setErro(null)
+
+    const problema = problemaNoArquivo(arquivo)
+    if (problema) {
+      setErro(problema)
+      return
+    }
+
+    anexar.mutate(
+      { id: documento.id, arquivo },
+      {
+        onError: (e) =>
+          setErro(
+            e instanceof ApiError
+              ? e.message
+              : 'Não conseguimos enviar o arquivo. Verifique a conexão e tente de novo.',
+          ),
+      },
+    )
+  }
+
+  if (!temArquivo && !podeEscrever) return null
+
+  return (
+    <div className="mt-2.5 border-t border-border pt-2.5">
+      <input
+        ref={seletor}
+        type="file"
+        accept={ACCEPT_ARQUIVO}
+        onChange={escolheu}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
+      {temArquivo ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink-muted">
+            <Paperclip className="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+            <span className="truncate">{documento.fileName}</span>
+            {documento.fileSize !== null && (
+              <span className="tabular shrink-0 text-xs text-ink-subtle">
+                {tamanhoEmTexto(documento.fileSize)}
+              </span>
+            )}
+          </span>
+
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              variante="ghost"
+              tamanho="sm"
+              carregando={baixar.isPending}
+              iconeEsquerda={<Download className="size-4" aria-hidden="true" />}
+              className="gap-1.5"
+              aria-label={`Baixar arquivo de ${documento.title}`}
+              onClick={() => {
+                setErro(null)
+                baixar.mutate(documento.id, {
+                  onError: () =>
+                    setErro('Não conseguimos gerar o link agora. Tente de novo em instantes.'),
+                })
+              }}
+            >
+              Baixar
+            </Button>
+
+            {podeEscrever && (
+              <>
+                <Button
+                  variante="ghost"
+                  tamanho="sm"
+                  carregando={anexar.isPending}
+                  disabled={ocupado}
+                  onClick={() => seletor.current?.click()}
+                >
+                  Trocar
+                </Button>
+                <Button
+                  variante="ghost"
+                  tamanho="sm"
+                  carregando={remover.isPending}
+                  disabled={ocupado}
+                  onClick={() => {
+                    // O registro e a validade continuam; só o anexo sai. Vale
+                    // dizer isso na pergunta, senão parece que apaga tudo.
+                    if (!window.confirm('Remover o arquivo? O documento e a validade continuam.')) {
+                      return
+                    }
+                    setErro(null)
+                    remover.mutate(documento.id, {
+                      onError: (e) =>
+                        setErro(
+                          e instanceof ApiError ? e.message : 'Não conseguimos remover o arquivo.',
+                        ),
+                    })
+                  }}
+                >
+                  Remover arquivo
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <Button
+          variante="ghost"
+          tamanho="sm"
+          carregando={anexar.isPending}
+          iconeEsquerda={<Upload className="size-4" aria-hidden="true" />}
+          className="gap-1.5"
+          aria-label={`Anexar arquivo em ${documento.title} de ${documento.caregiverName}`}
+          onClick={() => seletor.current?.click()}
+        >
+          {anexar.isPending ? 'Enviando…' : 'Anexar arquivo'}
+        </Button>
+      )}
+
+      {erro && (
+        <p role="alert" className="mt-1.5 text-sm text-danger">
+          {erro}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -373,7 +549,7 @@ function FormularioDocumento({
     <Card>
       <CardHeader
         titulo="Novo documento"
-        descricao="O arquivo em si fica fora do sistema por enquanto — o que vale aqui é a validade."
+        descricao="Registre a validade primeiro — é ela que dispara o aviso. O arquivo você anexa depois, na linha do documento."
       />
       <CardBody className="pt-3">
         <form

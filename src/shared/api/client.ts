@@ -136,6 +136,17 @@ interface OpcoesRequisicao {
   idempotencyKey?: string
 }
 
+/**
+ * `FormData` sai cru e **sem** `Content-Type`.
+ *
+ * Quem define o cabeçalho aqui é o navegador, porque só ele sabe o `boundary`
+ * que separa as partes — escrever `multipart/form-data` na mão produz um
+ * cabeçalho sem boundary, e o servidor responde que não veio arquivo nenhum.
+ */
+function ehFormData(body: unknown): body is FormData {
+  return typeof FormData !== 'undefined' && body instanceof FormData
+}
+
 async function requisicao<T>(path: string, opcoes: OpcoesRequisicao = {}): Promise<T> {
   const { method = 'GET', body, signal, semRefresh = false, idempotencyKey } = opcoes
 
@@ -144,9 +155,11 @@ async function requisicao<T>(path: string, opcoes: OpcoesRequisicao = {}): Promi
     throw new OfflineError()
   }
 
+  const arquivo = ehFormData(body)
+
   const executar = async (): Promise<Response> => {
     const headers: Record<string, string> = { Accept: 'application/json' }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (body !== undefined && !arquivo) headers['Content-Type'] = 'application/json'
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
 
@@ -155,7 +168,7 @@ async function requisicao<T>(path: string, opcoes: OpcoesRequisicao = {}): Promi
       headers,
       credentials: 'include',
       signal,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : arquivo ? body : JSON.stringify(body),
     })
   }
 
